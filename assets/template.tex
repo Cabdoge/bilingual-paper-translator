@@ -1,0 +1,484 @@
+% 通用中英双栏模板；XeLaTeX 编译。默认输入类型为仅 PDF。
+% ============================================================
+% 论文中英对照译稿：排版参数与双栏环境
+% 后续调整建议：先改“可调参数区”，通常不需要改环境实现。
+% 编译方式：XeLaTeX；正文位于本文件后面的 \begin{document} 之后。
+% ============================================================
+
+% 文档类仍以五号初始化标题层级；正文精确字号由下方 BodyFontSize 统一设置。
+% pair 环境继承正常正文；不使用 \small。
+\documentclass[UTF8,fontset=fandol,zihao=5]{ctexart}
+
+% ---------- 宏包：按功能分组 ----------
+\usepackage{geometry}                         % 纸张与页边距
+\usepackage{amsmath,amssymb,mathtools,amsthm} % 数学公式与符号
+\usepackage{lmodern}                          % 西文字体
+\usepackage{paracol}                          % 中英并排、独立流动的双栏
+\usepackage{graphicx,xfp}\usepackage{booktabs,array,longtable}         % 表格
+\usepackage{xcolor,fancyhdr,enumitem}         % 颜色、页脚与列表
+\usepackage{needspace}                        % 为标题及后续文字预留空间
+\usepackage{hyperref}              % 内部公式引用与链接
+
+% ============================================================
+% 一、可调参数区
+% 单位提示：mm 适合页边距，pt 适合小间距，em 随当前字体大小变化。
+% “plus / minus”允许 TeX 在分页时小幅伸缩间距。
+% ============================================================
+
+% ---------- 1. 页面与双栏 ----------
+\newlength{\PageLeftMargin}   \setlength{\PageLeftMargin}{25mm}
+\newlength{\PageRightMargin}  \setlength{\PageRightMargin}{25mm}
+\newlength{\PageTopMargin}    \setlength{\PageTopMargin}{24mm}
+\newlength{\PageBottomMargin} \setlength{\PageBottomMargin}{24mm}
+\newlength{\BilingualColumnGap} \setlength{\BilingualColumnGap}{36mm}
+\newlength{\BilingualRuleWidth} \setlength{\BilingualRuleWidth}{0.3pt}
+\definecolor{ink}{HTML}{20313F}    % 正文标题色
+\definecolor{accent}{HTML}{167D8D} % 次级标题与栏分隔线色
+\newcommand{\BilingualRuleColor}{accent!35}
+\newcommand{\DocumentLinkColor}{accent} % 链接主题色；可改为 ink 或其他已定义颜色
+
+% ---------- 2. 正文行距、段距与换行 ----------
+% 基础字号采用 bp（PDF 点，1 bp = 1/72 英寸）。英文、定理和独立公式均使用它。
+\newcommand{\BodyFontBP}{11} % 英文基础字号的数值，单位 bp
+\newcommand{\BodyFontSize}{\BodyFontBP bp}
+% 数学正文随基础字号；上下标按原稿比例放大，避免文字与公式比例失衡。
+\newcommand{\BodyMathScriptSize}{\fpeval{7*\BodyFontBP/10.5}pt}
+\newcommand{\BodyMathSmallScriptSize}{\fpeval{5*\BodyFontBP/10.5}pt}
+\newcommand{\BodyLineStretch}{1.3} % 沿用 ctex 默认行距倍率；如需更疏，可改为 1.4
+% 输入类型只指用户实际提供的原文；MinerU 生成的公式源码不算 TeX 原文。
+\newif\ifSourceHasTeX
+\SourceHasTeXfalse % 有原 TeX 时改成 SourceHasTeXtrue
+\newcommand{\EnglishIndentFactor}{1.5} % em；英文标题后的首段另设为零
+\newcommand{\ChineseIndentFactor}{2} % 当前中文字宽；字号选定后才应用
+
+\newlength{\BodyParagraphSkip}   \setlength{\BodyParagraphSkip}{4pt}
+\newlength{\PairExtraGap}        \setlength{\PairExtraGap}{0pt}
+% PairExtraGap 是每个 pair 结束后另外追加的间距；段距、公式间距另计。
+% 默认 0pt，避免与公式上下间距叠加。建议只在确实需要时增加。
+\newlength{\BodyEmergencyStretch} \setlength{\BodyEmergencyStretch}{1em}
+% 以下两项只在含较高行内公式的行之间生效，不是通常的正文行距。
+% 保留现有设置；若行内分式碰到上下行，可适当增加安全间隙。
+\newcommand{\InlineMathSafetyGap}{\dimexpr\baselineskip-1em\relax}
+\newlength{\InlineMathGapThreshold} \setlength{\InlineMathGapThreshold}{2.5pt}
+
+% ---------- 3. 正文、定理内部的行间公式 ----------
+% 下列默认值沿用当前正常字号的公式间距。
+% 要调整普通段落或定理内部的公式，只修改这一组。
+\newlength{\BodyDisplayAbove} \setlength{\BodyDisplayAbove}{10pt plus 2pt minus 5pt}
+\newlength{\BodyDisplayBelow} \setlength{\BodyDisplayBelow}{10pt plus 2pt minus 5pt}
+\newlength{\BodyDisplayShortAbove} \setlength{\BodyDisplayShortAbove}{0pt plus 3pt}
+\newlength{\BodyDisplayShortBelow} \setlength{\BodyDisplayShortBelow}{6pt plus 3pt minus 3pt}
+% “Short”用于公式前一行较短的情况，因此视觉间距可能略有差别。
+
+% ---------- 4. 独立公式双栏块 equationpair ----------
+\newlength{\EquationPairAboveGap} \setlength{\EquationPairAboveGap}{4pt}
+\newlength{\EquationPairBelowGap} \setlength{\EquationPairBelowGap}{4pt}
+% 这两个值是公式块的附加留白，不是文字基线到公式基线的总距离。
+% equationpair 会自动补偿新栏开头的空基线；不要手动加负 \vspace。
+% 不要在 equation、align 等行间公式环境前插入 \par 或空白段落。
+
+% ---------- 5. 标题样式、间距及页末保护 ----------
+\newcommand{\DocumentTitleStyle}{\LARGE}
+\newcommand{\MainHeadingStyle}{\Large\bfseries\color{ink}}
+\newcommand{\SubHeadingStyle}{\large\bfseries\color{accent}}
+\newlength{\MainHeadingBefore} \setlength{\MainHeadingBefore}{8pt}
+\newlength{\SubHeadingBefore}  \setlength{\SubHeadingBefore}{6pt}
+% 以下整数表示标题前至少预留多少个正文行高，包含标题自身。
+% 标题较长时可增加；它们不会把整个后续段落锁在同一页。
+\newcommand{\MainHeadingKeepLines}{5}
+\newcommand{\SubHeadingKeepLines}{4}
+\newcommand{\StatementKeepLines}{3}
+
+% ---------- 6. 定理、命题、引理和定义 ----------
+\newlength{\StatementBeforeSkip} \setlength{\StatementBeforeSkip}{5pt}
+\newlength{\StatementAfterSkip}  \setlength{\StatementAfterSkip}{5pt}
+\newcommand{\StatementLabelStyle}{\bfseries}
+\newcommand{\TheoremEnglishStyle}{\itshape}
+\newcommand{\TheoremChineseStyle}{\itshape} % 当前 Fandol 配置下中文使用楷体
+\newcommand{\DefinitionEnglishStyle}{\upshape}
+\newcommand{\DefinitionChineseStyle}{\upshape}
+% 中文定理若希望使用直立宋体，将 TheoremChineseStyle 改为 \upshape。
+
+% ---------- 7. 页脚 ----------
+\newcommand{\FooterTextStyle}{\normalsize}
+
+% ============================================================
+% 二、应用参数：将上面的配置连接到 LaTeX 排版长度
+% ============================================================
+
+% 纸张模式统一在这一行选择；当前为 A3 横版。
+\geometry{a3paper,landscape,
+  left=\PageLeftMargin, right=\PageRightMargin,
+  top=\PageTopMargin, bottom=\PageBottomMargin}
+\linespread{\BodyLineStretch}
+\setlength{\columnsep}{\BilingualColumnGap}
+\setlength{\columnseprule}{\BilingualRuleWidth}
+\colseprulecolor{\BilingualRuleColor}
+% 链接文字使用主题色；内部引用、文献、网址与文件链接保持一致。
+\hypersetup{
+  colorlinks=true,
+  linkcolor=\DocumentLinkColor,
+  citecolor=\DocumentLinkColor,
+  urlcolor=\DocumentLinkColor,
+  filecolor=\DocumentLinkColor
+}
+\setlength{\emergencystretch}{\BodyEmergencyStretch}
+
+% 每个普通双栏块都显式采用同一套正文公式间距。
+\newcommand{\ApplyBodyDisplaySpacing}{%
+  \setlength{\abovedisplayskip}{\BodyDisplayAbove}%
+  \setlength{\belowdisplayskip}{\BodyDisplayBelow}%
+  \setlength{\abovedisplayshortskip}{\BodyDisplayShortAbove}%
+  \setlength{\belowdisplayshortskip}{\BodyDisplayShortBelow}%
+}
+% 精确设置正常正文：基准行高为字号的 1.2 倍，再乘 BodyLineStretch。
+% 因此只改 BodyFontSize 即可同时调整正常文字和行高。
+\renewcommand{\normalsize}{%
+  \fontsize{\BodyFontSize}{\dimexpr\BodyFontSize*6/5\relax}\selectfont
+}
+\DeclareMathSizes{\BodyFontSize}{\BodyFontSize}
+  {\BodyMathScriptSize}{\BodyMathSmallScriptSize}
+\AtBeginDocument{%
+  \normalsize
+  \setlength{\parindent}{0pt}%
+  \setlength{\parskip}{\BodyParagraphSkip}%
+  \setlength{\lineskip}{\InlineMathSafetyGap}%
+  \setlength{\lineskiplimit}{\InlineMathGapThreshold}%
+  \ApplyBodyDisplaySpacing
+}
+
+% ============================================================
+% 三、双栏环境：英文左栏、中文右栏
+% ============================================================
+
+% 用法：\begin{pair} 英文 \switchcolumn 中文 \end{pair}
+% 可选参数是块开始前预留的正文行数，如 \begin{pair}[3]。
+% 参数默认为 0；长块仍可跨页。不能在 pair 内再嵌套 pair。
+\newenvironment{pair}[1][0]{%
+  \ifnum#1>0\relax
+    \Needspace{#1\baselineskip}%
+  \fi
+  \begin{paracol}{2}\normalsize%
+  \ApplyBodyDisplaySpacing
+}{%
+  \end{paracol}%
+  \ifdim\PairExtraGap>0pt\relax
+    \vspace{\PairExtraGap}%
+  \fi
+}
+
+% 用法：两栏均只含行间公式时使用 equationpair。
+% 普通段落或完整定理里的公式仍直接写在 pair 中，不另拆公式块。
+% 这里的负间距是对新栏空基线的补偿；可调留白由上面的正值控制。
+\newenvironment{equationpair}{%
+  \begin{pair}%
+  \setlength{\parskip}{0pt}%
+  \ifdefined\setdisplayskipstretch
+    \setdisplayskipstretch{1}% 若另行启用 setspace，避免重复放大公式间距
+  \fi
+  \setlength{\abovedisplayskip}{\dimexpr\EquationPairAboveGap-\baselineskip\relax}%
+  \setlength{\abovedisplayshortskip}{\abovedisplayskip}%
+  \setlength{\belowdisplayskip}{\EquationPairBelowGap}%
+  \setlength{\belowdisplayshortskip}{\EquationPairBelowGap}%
+}{%
+  \end{pair}%
+}
+
+% ============================================================
+% 四、双语标题：标题文字、字号和留白分别管理
+% ============================================================
+
+% 单栏标题组件：#1 为前间距，#2 为字体样式，#3 为标题文字。
+\newcommand{\BPTAlignleft}{\raggedright}
+\newcommand{\BPTAligncenter}{\centering}
+\newcommand{\HeadingBlock}[4]{%
+  \par\addvspace{#2}%
+  \noindent{\csname BPTAlign#1\endcsname #3 #4\par}%
+}
+\newcommand{\BilingualHeading}[6]{%
+  \begin{pair}[#1]
+  \HeadingBlock{#4}{#2}{#3}{#5}\switchcolumn
+  \HeadingBlock{#4}{#2}{#3}{#6}\end{pair}}
+% 可选参数为 left / center；标题本身的编号使用原论文文字。
+\NewDocumentCommand{\phead}{O{left} m m}{%
+  \BilingualHeading{\MainHeadingKeepLines}{\MainHeadingBefore}{\MainHeadingStyle}{#1}{#2}{#3}}
+\NewDocumentCommand{\psubhead}{O{left} m m}{%
+  \BilingualHeading{\SubHeadingKeepLines}{\SubHeadingBefore}{\SubHeadingStyle}{#1}{#2}{#3}}
+\NewDocumentCommand{\papertitle}{O{center} m m}{%
+  \BilingualHeading{\MainHeadingKeepLines}{0pt}{\DocumentTitleStyle}{#1}{#2}{#3}}
+
+% ============================================================
+% 五、定理类环境：共享标签和留白逻辑，分别指定中英文字体
+% ============================================================
+
+% #1 为完整标签（例如 Theorem 7 / 定理 7），#2 为正文样式。
+% 标签不自动编号，以便保留原论文编号及已有链接。
+\newcommand{\StatementBegin}[2]{%
+  \par\addvspace{\StatementBeforeSkip}%
+  \noindent{\StatementLabelStyle #1.}\ % 标签后保留一个词间空格
+  \begingroup#2%
+}
+\newcommand{\StatementEnd}{%
+  \par\endgroup\addvspace{\StatementAfterSkip}%
+}
+\newenvironment{formaltheoremen}[1]{%
+  \StatementBegin{#1}{\TheoremEnglishStyle}\ApplyEnglishIndent%
+}{\StatementEnd}
+\newenvironment{formaltheoremzh}[1]{%
+  \StatementBegin{#1}{\TheoremChineseStyle}\ApplyChineseIndent%
+}{\StatementEnd}
+\newenvironment{formaldefinitionen}[1]{%
+  \StatementBegin{#1}{\DefinitionEnglishStyle}\ApplyEnglishIndent%
+}{\StatementEnd}
+\newenvironment{formaldefinitionzh}[1]{%
+  \StatementBegin{#1}{\DefinitionChineseStyle}\ApplyChineseIndent%
+}{\StatementEnd}
+
+% 一个完整定理的英文和中文陈述共用同一个 pair。
+% 末尾公式必须位于相应 formal 环境及外层 pair 的结束标记之前。
+% 定理块使用 pair[\StatementKeepLines]，只保护开头，不限制整块跨页。
+
+% ============================================================
+% 六、公式引用与页脚
+% ============================================================
+
+% \eqen{eq37} / \eqzh{eq37} 分别跳转到英文 / 中文栏同号公式。
+% 标签约定：eq:eq37:en、eq:eq37:zh；正文已有标签不作改名。
+% 带名称的编号引用：#1 为跳转目标，#2 为名称，#3 为编号。
+% 例如 \NumberedLink{theorem:1:zh}{定理}{1}：名称黑色，编号主题色。
+% 名称和编号仍组成同一个可点击链接；\textcolor 只改变名称颜色。
+% 定理、命题、引理和定义自身的标题编号：黑色文字，无自链接。
+% 跳转锚点仍由附近的 hypertarget 保留，正文引用继续使用 NumberedLink。
+\newcommand{\StatementNumber}[2]{\textcolor{black}{#1~#2}}
+\newcommand{\NumberedLink}[3]{%
+  \hyperlink{#1}{\textcolor{black}{#2}~#3}%
+}
+% 用显式目标和原编号引用公式；只有确实存在于本文的对象才能作内部跳转。
+\newcommand{\EqRef}[2]{(\hyperlink{#1}{#2})}
+% 原脚注可用数字或符号；两栏均保留其原标记，内部目标由 paracol/hyperref 分离。
+\newcommand{\SourceFootnote}[2]{\begingroup\renewcommand{\thefootnote}{#1}\footnote{#2}\endgroup}
+% 原有 label 形式的公式引用也可使用下列组件。
+\newcommand{\eqen}[1]{(\hyperref[eq:#1:en]{\ref*{eq:#1:en}})}
+\newcommand{\eqzh}[1]{(\hyperref[eq:#1:zh]{\ref*{eq:#1:zh}})}
+\pagestyle{fancy}
+\fancyhf{}
+% 不显示页眉及横线，仅在页脚中央保留页码。
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\fancyfoot[C]{\FooterTextStyle\thepage}
+
+% ============================================================
+% 七、安全的普通段落配对与自动中文字号
+% ============================================================
+
+% ============================================================
+% 中文正文：普通说明段落按高度自动选择中文字号
+% ============================================================
+% 普通中文段落自动调节；英文、完整定理和独立公式采用统一基础字号。
+% 中文正文会从候选字号中自动选择最接近英文排版高度的一项。
+% 达到字号上限后允许保留高度差，不强制放大到等高。
+\usepackage{xparse}
+\newcommand{\ChineseSizeOffsets}{0,0.25,0.5,0.75,1,1.25,1.5} % 单位 bp，按升序列出
+\newcommand{\AdaptiveBaselineFactor}{1.2} % 基准行高/字号，再乘 BodyLineStretch
+\newcommand{\AdaptiveMathTextSize}{\BodyFontSize} % 数学正文固定为本稿基础字号
+\newcommand{\AdaptiveMathScriptSize}{\BodyMathScriptSize} % 继承统一上下标参数
+\newcommand{\AdaptiveMathSmallScriptSize}{\BodyMathSmallScriptSize} % 二级上下标
+% 基础字号变化时，数学字号按比例自动更新；需要改变上下标比例时再调整对应参数。
+% 候选字号 = BodyFontBP + ChineseSizeOffsets；基本字号改动时数学字号同步变化。
+
+\ExplSyntaxOn
+\bool_new:N \l_bpt_first_bool
+\bool_new:N \l_bpt_continued_bool
+\bool_new:N \l_bpt_fixed_bool
+\tl_new:N \l_bpt_id_tl
+\int_new:N \l_bpt_keep_int
+\keys_define:nn {bpt/textpair}
+  {
+    id .tl_set:N=\l_bpt_id_tl,
+    mode .choice:,
+    mode/auto .code:n={\bool_set_false:N \l_bpt_fixed_bool},
+    mode/fixed .code:n={\bool_set_true:N \l_bpt_fixed_bool},
+    first .bool_set:N=\l_bpt_first_bool,
+    first .default:n=true,
+    continued .bool_set:N=\l_bpt_continued_bool,
+    continued .default:n=true,
+    keep .int_set:N=\l_bpt_keep_int
+  }
+\cs_new_protected:Npn \ApplyEnglishIndent
+  {
+    \ifSourceHasTeX \setlength{\parindent}{\EnglishIndentFactor em}
+    \else \setlength{\parindent}{0pt}\fi
+    \bool_if:NT \l_bpt_first_bool {\setlength{\parindent}{0pt}}
+    \bool_if:NT \l_bpt_continued_bool {\setlength{\parindent}{0pt}}
+  }
+\cs_new_protected:Npn \ApplyChineseIndent
+  {
+    \ifSourceHasTeX \setlength{\parindent}{\ChineseIndentFactor\ccwd}
+    \else \setlength{\parindent}{0pt}\fi
+    \bool_if:NT \l_bpt_continued_bool {\setlength{\parindent}{0pt}}
+  }
+
+\clist_new:N \l_bpt_adaptive_sizes_clist
+\clist_new:N \l_bpt_offsets_clist
+\clist_set:Nx \l_bpt_offsets_clist {\ChineseSizeOffsets}
+\clist_map_inline:Nn \l_bpt_offsets_clist
+  {\clist_put_right:Nx \l_bpt_adaptive_sizes_clist {\fp_eval:n{\BodyFontBP+(#1)}}}
+% 为每个候选文字字号声明同一套数学字号。
+\clist_map_inline:Nn \l_bpt_adaptive_sizes_clist
+  {
+    \DeclareMathSizes{#1bp}
+      {\AdaptiveMathTextSize}
+      {\AdaptiveMathScriptSize}
+      {\AdaptiveMathSmallScriptSize}
+  }
+
+\seq_new:N \l_bpt_adaptive_columns_seq
+\tl_new:N \l_bpt_adaptive_en_tl
+\tl_new:N \l_bpt_adaptive_zh_tl
+\tl_new:N \l_bpt_adaptive_chosen_size_tl
+\box_new:N \l_bpt_adaptive_measure_box
+\dim_new:N \l_bpt_adaptive_column_width_dim
+\dim_new:N \l_bpt_adaptive_en_height_dim
+\dim_new:N \l_bpt_adaptive_initial_zh_height_dim
+\dim_new:N \l_bpt_adaptive_chosen_zh_height_dim
+\dim_new:N \l_bpt_adaptive_candidate_height_dim
+\fp_new:N \l_bpt_adaptive_best_error_fp
+\fp_new:N \l_bpt_adaptive_candidate_error_fp
+\int_new:N \g_bpt_adaptive_pair_int
+
+% 设置中文候选字号；数学字号已在上面的 DeclareMathSizes 中固定。
+\cs_new_protected:Npn \bpt_adaptive_font:n #1
+  {
+    \fontsize{#1bp}
+      {\fp_eval:n { \AdaptiveBaselineFactor * (#1) } bp}\selectfont
+    \ApplyBodyDisplaySpacing
+    \setlength{\lineskip}{\InlineMathSafetyGap}
+    \setlength{\lineskiplimit}{\InlineMathGapThreshold}\ApplyChineseIndent
+  }
+
+% 试排盒子仅用于测量，绝不作为最终正文输出，因此正文仍可正常跨页。
+% #1 为字体设置代码，#2 为段落内容。
+% 试排时取消链接操作，但保留显示文字，避免反复建立 PDF 链接。
+% 自动试排仅适用于无标签、无脚注、无自动计数器的普通说明段落。
+\cs_new_protected:Npn \bpt_adaptive_measure:nn #1#2
+  {
+    \vbox_set:Nn \l_bpt_adaptive_measure_box
+      {
+        \hsize=\l_bpt_adaptive_column_width_dim
+        \linewidth=\l_bpt_adaptive_column_width_dim
+        \textwidth=\l_bpt_adaptive_column_width_dim
+        #1
+        % 缩进由上面的语言字体选择器应用，试排与输出保持一致。
+        \setlength{\parskip}{\BodyParagraphSkip}
+        \cs_set_eq:NN \hyperlink \use_ii:nn
+        \RenewDocumentCommand \hyperref { o m } { ##2 }
+        #2\par
+      }
+  }
+
+% 选择字号：以两栏自然排版高度之差的绝对值作为比较指标。
+% 两个字号同样接近时，保留较小字号；仅一行的段落不调整。
+\cs_new_protected:Npn \bpt_adaptive_choose_size:
+  {
+    \tl_set:Nx \l_bpt_adaptive_chosen_size_tl
+      { \clist_item:Nn \l_bpt_adaptive_sizes_clist {1} }
+    \bpt_adaptive_measure:nn {\normalsize\ApplyEnglishIndent}
+      {\tl_use:N \l_bpt_adaptive_en_tl}
+    \dim_set:Nn \l_bpt_adaptive_en_height_dim
+      { \box_ht:N \l_bpt_adaptive_measure_box + \box_dp:N \l_bpt_adaptive_measure_box }
+    \bpt_adaptive_measure:nn
+      {\bpt_adaptive_font:n {\tl_use:N \l_bpt_adaptive_chosen_size_tl}}
+      {\tl_use:N \l_bpt_adaptive_zh_tl}
+    \dim_set:Nn \l_bpt_adaptive_initial_zh_height_dim
+      { \box_ht:N \l_bpt_adaptive_measure_box + \box_dp:N \l_bpt_adaptive_measure_box }
+    \dim_set_eq:NN \l_bpt_adaptive_chosen_zh_height_dim \l_bpt_adaptive_initial_zh_height_dim
+    \fp_set:Nn \l_bpt_adaptive_best_error_fp
+      { abs(\dim_to_fp:n {\l_bpt_adaptive_initial_zh_height_dim} -
+            \dim_to_fp:n {\l_bpt_adaptive_en_height_dim}) }
+    % 中文在基础字号下已经较高时不再放大；英文只有一行时也不调整。
+    \dim_compare:nNnT {\l_bpt_adaptive_en_height_dim} > {\baselineskip}
+      {
+        \dim_compare:nNnT {\l_bpt_adaptive_initial_zh_height_dim} < {\l_bpt_adaptive_en_height_dim}
+          {
+            \clist_map_inline:Nn \l_bpt_adaptive_sizes_clist
+              {
+                \bpt_adaptive_measure:nn {\bpt_adaptive_font:n {##1}}
+                  {\tl_use:N \l_bpt_adaptive_zh_tl}
+                \dim_set:Nn \l_bpt_adaptive_candidate_height_dim
+                  { \box_ht:N \l_bpt_adaptive_measure_box + \box_dp:N \l_bpt_adaptive_measure_box }
+                \fp_set:Nn \l_bpt_adaptive_candidate_error_fp
+                  { abs(\dim_to_fp:n {\l_bpt_adaptive_candidate_height_dim} -
+                        \dim_to_fp:n {\l_bpt_adaptive_en_height_dim}) }
+                \fp_compare:nNnT {\l_bpt_adaptive_candidate_error_fp} < {\l_bpt_adaptive_best_error_fp}
+                  {
+                    \fp_set_eq:NN \l_bpt_adaptive_best_error_fp \l_bpt_adaptive_candidate_error_fp
+                    \tl_set:Nn \l_bpt_adaptive_chosen_size_tl {##1}
+                    \dim_set_eq:NN \l_bpt_adaptive_chosen_zh_height_dim \l_bpt_adaptive_candidate_height_dim
+                  }
+              }
+          }
+      }
+  }
+
+% 正文仍使用英文 \switchcolumn 中文；可选参数改为明确的排版键。
+% 此环境只支持一个 \switchcolumn，不在此环境中嵌套 pair。
+% 测量使用当前等宽双栏的栏宽；修改 columnratio 时需同步修改此处。
+% textpair[mode=auto|fixed, first, continued, keep=行数, id=块编号]
+% 仅普通安全段落进入自动试排；间接包含副作用的宏必须显式 mode=fixed。
+\NewDocumentEnvironment{textpair}{O{} +b}
+  {
+    \keys_set:nn {bpt/textpair}{id=,mode=auto,first=false,continued=false,keep=0,#1}
+    \seq_set_split:Nnn \l_bpt_adaptive_columns_seq {\switchcolumn}{#2}
+    \int_compare:nNnTF {\seq_count:N \l_bpt_adaptive_columns_seq}= {2}
+      {
+        \seq_pop_left:NN \l_bpt_adaptive_columns_seq \l_bpt_adaptive_en_tl
+        \seq_pop_left:NN \l_bpt_adaptive_columns_seq \l_bpt_adaptive_zh_tl
+        % 不展开任意宏，避免判断过程本身触发计数器或文件操作。
+        \clist_map_inline:nn
+          {footnote,footnotetext,footnotemark,SourceFootnote,label,hypertarget,
+           phantomsection,stepcounter,refstepcounter,addtocounter,setcounter,
+           caption,captionof,includegraphics,begin,write,index}
+          {
+            \exp_args:Nno \tl_if_in:nnT {#2}{\cs:w ##1\cs_end:}
+              {\bool_set_true:N \l_bpt_fixed_bool}
+          }
+        \dim_set:Nn \l_bpt_adaptive_column_width_dim {(\textwidth-\columnsep)/2}
+        \bool_if:NTF \l_bpt_fixed_bool
+          {
+            \tl_set:Nx \l_bpt_adaptive_chosen_size_tl {\BodyFontBP}
+            \iow_term:x{CASE|\l_bpt_id_tl|fixed}
+          }
+          {
+            \bpt_adaptive_choose_size:
+            \int_gincr:N \g_bpt_adaptive_pair_int
+            \iow_term:x{CASE|\l_bpt_id_tl|adaptive}
+            \iow_term:x{ADAPTIVE|\int_use:N\g_bpt_adaptive_pair_int|
+              \l_bpt_adaptive_chosen_size_tl|
+              \dim_to_decimal:n{\l_bpt_adaptive_en_height_dim}|
+              \dim_to_decimal:n{\l_bpt_adaptive_initial_zh_height_dim}|
+              \dim_to_decimal:n{\l_bpt_adaptive_chosen_zh_height_dim}}
+          }
+        \begin{pair}[\int_use:N\l_bpt_keep_int]
+        \normalsize\ApplyEnglishIndent\tl_use:N \l_bpt_adaptive_en_tl\par
+        \switchcolumn
+        \group_begin:
+          \bpt_adaptive_font:n{\l_bpt_adaptive_chosen_size_tl}
+          \tl_use:N \l_bpt_adaptive_zh_tl\par
+        \group_end:
+        \end{pair}
+      }
+      {\PackageError{bpt}{textpair~requires~exactly~one~switchcolumn}
+        {Use~pair~for~structural~blocks.}}
+  }{}
+\ExplSyntaxOff
+
+
+\begin{document}
+\papertitle[center]{Bilingual Paper}{论文中英对照}
+\phead[left]{1 Introduction}{1 引言}
+\begin{textpair}[id=demo,first]
+This is a compilable template demonstration. Replace this body with the paper's verified English blocks and their reviewed Chinese translations. Set SourceHasTeX from the actual input type, not from the extraction format.
+\switchcolumn
+这是可以直接编译的模板示例。生成译稿时，将示例正文替换为核验后的英文块及中文译文。输入类型依据用户提供的原文确定。
+\end{textpair}
+\end{document}

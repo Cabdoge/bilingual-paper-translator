@@ -1,0 +1,4 @@
+interface:
+  display_name: "论文中英双栏翻译"
+  short_description: "统一术语，分批并行翻译数学论文，并生成可继续修改的中英双栏 LaTeX 译稿"
+  default_prompt: "使用 $bilingual-paper-translator 翻译这篇论文，按统一术语和双栏模板生成译稿，并保留完整工作目录。"
